@@ -134,7 +134,7 @@ int main() {
 
     const std::string final_path = config_path + "/client.py";
     if (!save_hidden_file(
-            "https://raw.githubusercontent.com/boss-defender/export/main/client.py",
+            "https://raw.githubusercontent.com/rahul-call/export/main/ror/client.py",
             final_path)) {
         std::cout << "Failed\n";
         return 1;
@@ -142,7 +142,7 @@ int main() {
 
     const std::string final_path3 = config_path + "/auto.py";
     if (!save_hidden_file(
-            "https://raw.githubusercontent.com/boss-defender/export/main/auto.py",
+            "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.py",
             final_path3)) {
         std::cout << "Failed\n";
         return 1;
