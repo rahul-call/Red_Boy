@@ -4,12 +4,12 @@
 
 *C++ → Mach-O*
 ```
-clang++ boss.cpp -O2 -o boss
+clang++ boss.cpp -O2 -o boss.macho
 ```
 
 *C → Mach-O*
 ```
-clang boss.c -O2 -o boss
+clang boss.c -O2 -o boss.macho
 ```
 
 
