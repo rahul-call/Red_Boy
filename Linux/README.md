@@ -8,14 +8,14 @@
 
 *C++ → ELF*
 ```bash
-g++ boss.cpp -O2 -o boss
+g++ boss.cpp -O2 -o boss.elf
 ```
 
 *if you make c , then*
 
 *C → ELF*
 ```bash
-gcc boss.c -O2 -o boss
+gcc boss.c -O2 -o boss.elf
 ```
 
 
